@@ -1,4 +1,4 @@
-import models.Creature
+import models.{Creature, Spell}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -14,10 +14,12 @@ object Main extends App {
   sc.setLogLevel("ERROR")
 
   val crawler: Crawler = new Crawler();
+  val spells: ArrayBuffer[Spell] = crawler.crawlSpells()
+  spells.foreach(spell => println(spell))
 
   // Crawling
   println("Start crawling creatures")
-  val creatures: ArrayBuffer[Creature] = crawler.crawl()
+  val creatures: ArrayBuffer[Creature] = crawler.crawlBestiaries()
   println("Stop crawling creatures")
 
   // (creature, spells)
