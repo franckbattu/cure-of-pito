@@ -13,9 +13,10 @@ object Main extends App {
   val sc: SparkContext = new SparkContext(conf)
   sc.setLogLevel("ERROR")
 
-  val crawler: Crawler = new Crawler();
-  val spells: ArrayBuffer[Spell] = crawler.crawlSpells()
-  spells.foreach(spell => println(spell))
+  val crawler: Crawler = new Crawler()
+
+//  val spells: ArrayBuffer[Spell] = crawler.crawlSpells()
+//  spells.foreach(spell => println(spell))
 
   // Crawling
   println("Start crawling creatures")
@@ -40,5 +41,9 @@ object Main extends App {
     .foreach(res => {
     println("Spell : " + res._1 + " | Creatures : " + res._2)
   })
+
+  // Server
+  val server = new Server()
+  server.run()
 
 }

@@ -8,24 +8,25 @@ import scala.collection.mutable.ArrayBuffer;
 
 class Crawler {
 
-    val bestiaries = Array(
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-a-b/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-c-d/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-e-f/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-g-h/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-i-j/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-k-l/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-m-n/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-o-p/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-q-r/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-s-t/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-u-v/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-w-x/",
-      "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-y-z/"
-    )
+  val bestiaries = Array(
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-a-b/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-c-d/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-e-f/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-g-h/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-i-j/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-k-l/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-m-n/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-o-p/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-q-r/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-s-t/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-u-v/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-w-x/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-y-z/"
+  )
 
   /**
    * Crawl all the bestiaries
+   *
    * @return an ArrayBuffer of all creatures with their spells
    */
   def crawlBestiaries(): ArrayBuffer[Creature] = {
@@ -42,12 +43,14 @@ class Crawler {
           val document: Document = Jsoup.connect(link.attr("href")).ignoreHttpErrors(true).get()
           val (name, section) = this.getDataBestiary(document)
 
-          val creature = new Creature(name)
+          if (section != null) {
+            val creature = new Creature(name)
+            section.forEach(spellLink => {
+              creature.addSpell(spellLink.text().toLowerCase)
+            })
+            creatures += creature
+          }
 
-          section.forEach(spellLink => {
-            creature.addSpell(spellLink.text().toLowerCase)
-          })
-          creatures += creature
         }
         catch {
           case e: Throwable => e.printStackTrace()
@@ -66,10 +69,14 @@ class Crawler {
       (name, section)
     }
     else {
-      // Problème avec https://www.d20pfsrd.com/bestiary/monster-listings/animals/cat-great/margay-tohc
       val link = document.select("article a").first()
-      val newDoc = Jsoup.connect(link.attr("href")).ignoreHttpErrors(true).get()
-      this.getDataBestiary(newDoc)
+      if (link != null) {
+        val newDoc = Jsoup.connect(link.attr("href")).ignoreHttpErrors(true).get()
+        this.getDataBestiary(newDoc)
+      }
+      else {
+        (null, null)
+      }
     }
   }
 
@@ -83,18 +90,20 @@ class Crawler {
       val data = documentSpell.select("div.article-content p:not([class])")
       val level = this.getLevel(data.first().text())
       val components = this.getComponents(data.get(1).text())
-      val resistance = if (data.size() >= 3 ) this.getResistance(data.get(2).text()) else false
-      spells += new Spell(name, level, components, resistance)
+      val resistance = if (data.size() >= 3) this.getResistance(data.get(2).text()) else false
+      val spell = new Spell(name, level, components, resistance)
+      println(spell)
+      spells += spell
     })
     spells;
   }
 
   def getLevel(sentence: String): Map[String, Int] = {
     val properties = sentence.split("; ")
-    val levels = properties(properties.length-1).replace("Level ", "")
+    val levels = properties(properties.length - 1).replace("Level ", "")
     val result = new mutable.HashMap[String, Int]()
 
-    for(entry <- levels.split(", ")) {
+    for (entry <- levels.split(", ")) {
       val tuple = entry.split(" ")
       if (tuple.length == 2) {
         result += ((tuple(0), tuple(1).toInt))
@@ -117,7 +126,11 @@ class Crawler {
   def getResistance(sentence: String): Boolean = {
     val matcher = "(?<=Spell Resistance ).*".r
     matcher.findFirstIn(sentence) match {
-      case Some(value: String) => if (value.length >= 3) { value.substring(0, 3).equals("yes") } else { false }
+      case Some(value: String) => if (value.length >= 3) {
+        value.substring(0, 3).equals("yes")
+      } else {
+        false
+      }
       case None => false
     }
   }
