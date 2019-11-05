@@ -15,8 +15,8 @@ object Main extends App {
 
   val crawler: Crawler = new Crawler()
 
-//  val spells: ArrayBuffer[Spell] = crawler.crawlSpells()
-//  spells.foreach(spell => println(spell))
+  val spells: ArrayBuffer[Spell] = crawler.crawlSpells()
+  spells.foreach(spell => println(spell))
 
   // Crawling
   println("Start crawling creatures")

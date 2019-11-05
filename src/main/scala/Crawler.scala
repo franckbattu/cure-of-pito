@@ -95,21 +95,24 @@ class Crawler {
       println(spell)
       spells += spell
     })
-    spells;
+    spells
   }
 
   def getLevel(sentence: String): Map[String, Int] = {
-    val properties = sentence.split("; ")
-    val levels = properties(properties.length - 1).replace("Level ", "")
-    val result = new mutable.HashMap[String, Int]()
-
-    for (entry <- levels.split(", ")) {
-      val tuple = entry.split(" ")
-      if (tuple.length == 2) {
-        result += ((tuple(0), tuple(1).toInt))
+    val matcher = "(?<=Level ).*".r
+    matcher.findFirstIn(sentence) match {
+      case Some(value: String) => {
+        val result = new mutable.HashMap[String, Int]()
+        val properties = value.split("; ")
+        for (entry <- properties(0).split(", ")) {
+          val tuple = entry.split(" ")
+          if (tuple.length == 2) {
+            result += ((tuple(0), tuple(1).toInt))
+          }
+        }
+        result.toMap
       }
     }
-    result.toMap
   }
 
   def getComponents(sentence: String): ArrayBuffer[String] = {
