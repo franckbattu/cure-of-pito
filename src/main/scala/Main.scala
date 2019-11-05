@@ -15,19 +15,22 @@ object Main extends App {
 
   val crawler: Crawler = new Crawler()
 
+  println("Start crawling spells")
   val spells: ArrayBuffer[Spell] = crawler.crawlSpells()
+  println("Stop crawling spells")
   spells.foreach(spell => println(spell))
+  val spellsRDD: RDD[Spell] = sc.makeRDD(spells)
 
-  // Crawling
+  // Crawling creatures
   println("Start crawling creatures")
   val creatures: ArrayBuffer[Creature] = crawler.crawlBestiaries()
   println("Stop crawling creatures")
 
   // (creature, spells)
-  val rdd: RDD[Creature] = sc.makeRDD(creatures)
+  val creaturesRDD: RDD[Creature] = sc.makeRDD(creatures)
 
   // inverted indexes (spell, creatures)
-  val spellsWithCreatures: RDD[(String, String)] = rdd
+  val spellsWithCreatures: RDD[(String, String)] = creaturesRDD
     .map(creature => (creature.name, creature.spells))
     .reduceByKey((spells1, spells2) => spells1)
     .flatMap{case (name, spells) => spells.map(spell => (spell, name))}
@@ -43,7 +46,7 @@ object Main extends App {
   })
 
   // Server
-  val server = new Server()
+  val server = new Server(spellsWithCreatures, spellsRDD)
   server.run()
 
 }

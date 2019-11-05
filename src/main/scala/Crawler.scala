@@ -25,14 +25,12 @@ class Crawler {
   )
 
   /**
-   * Crawl all the bestiaries
+   * Crawl toutes les bestiaries
    *
-   * @return an ArrayBuffer of all creatures with their spells
+   * @return un ArrayBuffer de toutes les créatures avec leurs sorts
    */
   def crawlBestiaries(): ArrayBuffer[Creature] = {
-
     val creatures: ArrayBuffer[Creature] = ArrayBuffer[Creature]();
-
     for (bestiary <- this.bestiaries) {
       println(bestiary)
       val document = Jsoup.connect(bestiary).get()
@@ -41,7 +39,7 @@ class Crawler {
       links.forEach(link => {
         try {
           val document: Document = Jsoup.connect(link.attr("href")).ignoreHttpErrors(true).get()
-          val (name, section) = this.getDataBestiary(document)
+          val (name, section) = this.getDataCreature(document)
 
           if (section != null) {
             val creature = new Creature(name)
@@ -61,7 +59,14 @@ class Crawler {
     creatures
   }
 
-  def getDataBestiary(document: Document): (String, Elements) = {
+  /**
+   * Donne toutes les informations d'une créature
+   * La méthode est récursive au cas-où une créature a changé d'adresse URL (dans ce cas, la méthode est appelée avec le nouveau lien)
+   *
+   * @param document
+   * @return un Tuple contenant le nom de la créature, et un document contenant les informations
+   */
+  def getDataCreature(document: Document): (String, Elements) = {
     val idArticle = document.select("article").attr("id")
     if (!idArticle.equals("post-404")) {
       val name = document.select("h1").text()
@@ -72,7 +77,7 @@ class Crawler {
       val link = document.select("article a").first()
       if (link != null) {
         val newDoc = Jsoup.connect(link.attr("href")).ignoreHttpErrors(true).get()
-        this.getDataBestiary(newDoc)
+        this.getDataCreature(newDoc)
       }
       else {
         (null, null)
@@ -80,6 +85,10 @@ class Crawler {
     }
   }
 
+  /**
+   * Crawl tous les spells
+   * @return un ArrayBuffer contenant tous les Spell
+   */
   def crawlSpells(): ArrayBuffer[Spell] = {
     val spells: ArrayBuffer[Spell] = new ArrayBuffer[Spell]()
     val document = Jsoup.connect("https://www.d20pfsrd.com/magic/all-spells/").ignoreHttpErrors(true).get()
@@ -87,10 +96,19 @@ class Crawler {
     links.forEach(link => {
       val documentSpell = Jsoup.connect(link.attr("href")).ignoreHttpErrors(true).get()
       val name = documentSpell.select("h1").text().toLowerCase()
-      val data = documentSpell.select("div.article-content p:not([class])")
-      val level = this.getLevel(data.first().text())
-      val components = this.getComponents(data.get(1).text())
-      val resistance = if (data.size() >= 3) this.getResistance(data.get(2).text()) else false
+
+      val level = this.getLevel(documentSpell.select("div.article-content p:not([class]):contains(School)").get(0).text())
+
+      var components = new ArrayBuffer[String]()
+      if (documentSpell.select("div.article-content p:not([class]):contains(Components)").size() > 0) {
+        components = this.getComponents(documentSpell.select("div.article-content p:not([class]):contains(Components)").get(0).text())
+      }
+
+      var resistance = false
+      if (documentSpell.select("div.article-content p:not([class]):contains(Resistance)").size > 0) {
+        resistance = this.getResistance(documentSpell.select("div.article-content p:not([class]):contains(Resistance)").get(0).text())
+      }
+
       val spell = new Spell(name, level, components, resistance)
       println(spell)
       spells += spell
@@ -98,6 +116,11 @@ class Crawler {
     spells
   }
 
+  /**
+   * Retourne le level d'un spell
+   * @param sentence la phrase à analyser
+   * @return une Map[String, Int] associant le nom de la classe avec le niveau
+   */
   def getLevel(sentence: String): Map[String, Int] = {
     val matcher = "(?<=Level ).*".r
     matcher.findFirstIn(sentence) match {
@@ -112,20 +135,37 @@ class Crawler {
         }
         result.toMap
       }
+      case None => null
     }
   }
 
+  /**
+   * Retourne les components d'un spell.
+   * @param sentence la phrase à analyser
+   * @return un ArrayBuffer contenant toutes les componenents
+   */
   def getComponents(sentence: String): ArrayBuffer[String] = {
     var result = new ArrayBuffer[String]()
-    val matcher = "[A-Z]+".r
-    for (component <- matcher.findAllIn(sentence)) {
-      if (!(component.equals("C") || component.equals("T"))) {
-        result += component
+    val matcher1 = "(?<=Components ).*".r
+    matcher1.findFirstIn(sentence) match {
+      case Some(value: String) => {
+        val matcher2 = "[A-Z]+".r
+        for (component <- matcher2.findAllIn(value)) {
+          if (!(component.equals("C") || component.equals("T"))) {
+            result += component
+          }
+        }
       }
+      case None => null
     }
     result
   }
 
+  /**
+   * Retourne la résistance d'un spell
+   * @param sentence la phrase à analyser
+   * @return un Boolean permettant de savoir si le spell a une résistance ou non
+   */
   def getResistance(sentence: String): Boolean = {
     val matcher = "(?<=Spell Resistance ).*".r
     matcher.findFirstIn(sentence) match {
