@@ -1,41 +1,85 @@
-import models.Spell
-import org.apache.spark.rdd.RDD
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
-import scala.io.StdIn
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
+import models.Spell
+import org.apache.spark.rdd.RDD
 import spray.json.DefaultJsonProtocol._
 
-class Server(val spellsWithCreatures: RDD[(String, String)], val spells: RDD[Spell]) {
+import scala.io.StdIn
 
-  final case class SpellName(name: String)
-  final case class SpellNames(spellNames: Array[SpellName])
-  implicit val spellNameFormat = jsonFormat1(SpellName)
-  implicit val spellNamesFormat = jsonFormat1(SpellNames)
+import scala.runtime.ScalaRunTime._
+
+final case class Search(spellName: String, components: Array[String], classes: Array[String]) {
+  override def toString: String = s"Search(spellName=${spellName}, components=${stringOf(components)}, classes=${stringOf(classes)})"
+}
+
+class Server(val spellsWithCreatures: RDD[(String, String)], val spells: RDD[Spell]) {
 
   def run(): Unit = {
     implicit val system = ActorSystem("my-system")
     implicit val materializer = ActorMaterializer()
-    // needed for the future flatMap/onComplete in the end
     implicit val executionContext = system.dispatcher
+    implicit val searchFormat = jsonFormat3(Search)
 
-    val route =
-      path("hello") {
-        get {
-          val spellsNameList: Array[String] = spells.map(spell => spell.name).collect()
-          complete(spellsNameList)
+    val route = {
+      path("spells") {
+        cors() {
+          post {
+            entity(as[Search]) { search => {
+              var correctSpells = spells;
+
+              if (search.components.length > 0) {
+                correctSpells = this.checkComponents(correctSpells, search)
+              }
+
+              if (search.classes.length > 0) {
+                correctSpells = this.checkClasses(correctSpells, search)
+              }
+
+              correctSpells = this.checkName(correctSpells, search)
+
+              complete(correctSpells
+                .map(spell => spell.name)
+                .collect())
+            }
+            }
+          }
         }
       }
+    }
 
-    val bindingFuture = Http().bindAndHandle(route, "localhost", 8080)
+    val bindingFuture = Http().bindAndHandle(route, "localhost", 8000)
 
-    println(s"Server online at http://localhost:8080/\nPress RETURN to stop...")
-    StdIn.readLine() // let it run until user presses return
+    println(s"Server online at http://localhost:8000/\nPress RETURN to stop...")
+    StdIn.readLine()
     bindingFuture
-      .flatMap(_.unbind()) // trigger unbinding from the port
-      .onComplete(_ => system.terminate()) // and shutdown when done
+      .flatMap(_.unbind())
+      .onComplete(_ => system.terminate())
+  }
+
+  def checkComponents(spells: RDD[Spell], search: Search): RDD[Spell] = {
+    spells
+      .filter(spell => spell.components.length == search.components.length)
+      .filter(spell => search.components.map(component => spell.components.contains(component)).reduce((a, b) => a && b))
+  }
+
+  def checkClasses(spells: RDD[Spell], search: Search): RDD[Spell] = {
+    spells
+      .filter(spell => spell.level.size == search.classes.length)
+      .filter(spell => search.classes.map(classe => spell.level.contains(classe)).reduce((a, b) => a && b))
+  }
+
+  /**
+   * Vérifie que le nom de la recherche soit contenu dans le nom du spell
+   *
+   * @param spells
+   * @param search
+   * @return
+   */
+  def checkName(spells: RDD[Spell], search: Search): RDD[Spell] = {
+    spells.filter(spell => spell.name.contains(search.spellName))
   }
 }

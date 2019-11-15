@@ -2,7 +2,7 @@ package models
 
 import scala.collection.mutable.ArrayBuffer
 
-case class Creature(val name : String) extends Serializable {
+case class Creature(val name : String, val link: String) extends Serializable {
   var spells: ArrayBuffer[String] =  ArrayBuffer[String]()
 
   def addSpell(spell : String) : Unit = {
