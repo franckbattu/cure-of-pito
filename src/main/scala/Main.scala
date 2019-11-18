@@ -2,7 +2,6 @@ import models.{Creature, Spell}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 
-import scala.collection.immutable.HashMap
 import scala.collection.mutable.ArrayBuffer
 
 object Main extends App {
@@ -15,11 +14,9 @@ object Main extends App {
   sc.setLogLevel("ERROR")
 
   val crawler: Crawler = new Crawler()
-
   println("Start crawling spells")
   val spells: ArrayBuffer[Spell] = crawler.crawlSpells()
   println("Stop crawling spells")
-  spells.foreach(spell => println(spell))
   val spellsRDD: RDD[Spell] = sc.makeRDD(spells)
 
   // Crawling creatures
@@ -45,9 +42,6 @@ object Main extends App {
     .foreach(res => {
       println("Spell : " + res._1 + " | Creatures : " + res._2)
     })
-
-  val tab = Array("V", "S")
-  val map = Array("sorcerer/wizard")
 
   // Server
   val server = new Server(spellsWithCreatures, spellsRDD)

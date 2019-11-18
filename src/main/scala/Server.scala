@@ -10,11 +10,9 @@ import spray.json.DefaultJsonProtocol._
 
 import scala.io.StdIn
 
-import scala.runtime.ScalaRunTime._
-
-final case class Search(spellName: String, components: Array[String], classes: Array[String]) {
-  override def toString: String = s"Search(spellName=${spellName}, components=${stringOf(components)}, classes=${stringOf(classes)})"
-}
+final case class Search(spellName: String, components: Array[String], classes: Array[String])
+final case class ResponseSearch(name: String, creatures: List[String])
+final case class ResponseSearchList(data: Array[ResponseSearch])
 
 class Server(val spellsWithCreatures: RDD[(String, String)], val spells: RDD[Spell]) {
 
@@ -23,27 +21,38 @@ class Server(val spellsWithCreatures: RDD[(String, String)], val spells: RDD[Spe
     implicit val materializer = ActorMaterializer()
     implicit val executionContext = system.dispatcher
     implicit val searchFormat = jsonFormat3(Search)
+    implicit val responseSearchFormat = jsonFormat2(ResponseSearch)
+    implicit val responseSearchListFormat = jsonFormat1(ResponseSearchList)
 
     val route = {
       path("spells") {
         cors() {
           post {
             entity(as[Search]) { search => {
-              var correctSpells = spells;
 
-              if (search.components.length > 0) {
+              var correctSpells: RDD[Spell] = spells;
+
+              if (search.components.nonEmpty) {
                 correctSpells = this.checkComponents(correctSpells, search)
               }
 
-              if (search.classes.length > 0) {
+              if (search.classes.nonEmpty) {
                 correctSpells = this.checkClasses(correctSpells, search)
               }
 
               correctSpells = this.checkName(correctSpells, search)
 
-              complete(correctSpells
-                .map(spell => spell.name)
-                .collect())
+              val rdd1 = correctSpells.map(spell => (spell.name, spell.name))
+              val rdd2: RDD[(String, Array[String])] = spellsWithCreatures.map { case (name, creatures) => (name, creatures.split(" / ")) }
+              val rdd3 = rdd1.join(rdd2);
+
+              val response: ResponseSearchList = ResponseSearchList(
+                rdd3
+                  .map { case (key, (name, creatures)) => println(name); ResponseSearch(name, creatures.toList) }
+                  .collect()
+              )
+
+              complete(response)
             }
             }
           }
@@ -69,16 +78,9 @@ class Server(val spellsWithCreatures: RDD[(String, String)], val spells: RDD[Spe
   def checkClasses(spells: RDD[Spell], search: Search): RDD[Spell] = {
     spells
       .filter(spell => spell.level.size == search.classes.length)
-      .filter(spell => search.classes.map(classe => spell.level.contains(classe)).reduce((a, b) => a && b))
+      .filter(spell => spell.level.map { case (key, value) => search.classes.contains(key) }.reduce((a, b) => a && b))
   }
 
-  /**
-   * Vérifie que le nom de la recherche soit contenu dans le nom du spell
-   *
-   * @param spells
-   * @param search
-   * @return
-   */
   def checkName(spells: RDD[Spell], search: Search): RDD[Spell] = {
     spells.filter(spell => spell.name.contains(search.spellName))
   }

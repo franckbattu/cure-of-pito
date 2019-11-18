@@ -8,25 +8,25 @@ import scala.collection.mutable.ArrayBuffer;
 
 class Crawler {
 
-//  val bestiaries = Array(
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-a-b/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-c-d/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-e-f/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-g-h/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-i-j/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-k-l/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-m-n/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-o-p/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-q-r/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-s-t/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-u-v/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-w-x/",
-//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-y-z/"
-//  )
-
   val bestiaries = Array(
     "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-a-b/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-c-d/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-e-f/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-g-h/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-i-j/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-k-l/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-m-n/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-o-p/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-q-r/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-s-t/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-u-v/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-w-x/",
+    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-y-z/"
   )
+
+//  val bestiaries = Array(
+//    "https://www.d20pfsrd.com/bestiary/bestiary-alphabetical/bestiary-a-b/",
+//  )
 
   /**
    * Crawl toutes les bestiaries
@@ -101,7 +101,7 @@ class Crawler {
       val documentSpell = Jsoup.connect(link.attr("href")).ignoreHttpErrors(true).get()
       val name = documentSpell.select("h1").text().toLowerCase()
 
-      val level = this.getLevel(documentSpell.select("div.article-content p:not([class]):contains(School)").get(0).text())
+      val level: mutable.Map[String, Int] = this.getLevel(documentSpell.select("div.article-content p:not([class]):contains(School)").get(0).text())
 
       var components = new ArrayBuffer[String]()
       if (documentSpell.select("div.article-content p:not([class]):contains(Components), div.article-content p:not([class]):contains(component)").size() > 0) {
@@ -113,7 +113,7 @@ class Crawler {
         resistance = this.getResistance(documentSpell.select("div.article-content p:not([class]):contains(Resistance)").get(0).text())
       }
 
-      val spell = new Spell(name, level, components, resistance)
+      val spell = Spell(name, level, components, resistance)
       spells += spell
     })
     spells
@@ -124,11 +124,11 @@ class Crawler {
    * @param sentence la phrase à analyser
    * @return une Map[String, Int] associant le nom de la classe avec le niveau
    */
-  def getLevel(sentence: String): mutable.Map[String, Int] = {
+  def getLevel(sentence: String): mutable.HashMap[String, Int] = {
+    val result = new mutable.HashMap[String, Int]()
     val matcher = "(?<=Level ).*".r
     matcher.findFirstIn(sentence) match {
       case Some(value: String) => {
-        val result = new mutable.HashMap[String, Int]()
         val properties = value.split("; ")
         for (entry <- properties(0).split(", ")) {
           val tuple = entry.split(" ")
@@ -138,7 +138,7 @@ class Crawler {
         }
         result
       }
-      case None => null
+      case None => result
     }
   }
 
