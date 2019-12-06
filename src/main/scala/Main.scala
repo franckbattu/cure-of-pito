@@ -9,41 +9,43 @@ object Main extends App {
   val conf: SparkConf = new SparkConf()
     .setAppName("Guerison")
     .setMaster("local[*]")
+    .set("spark.driver.host", "localhost");
 
   val sc: SparkContext = new SparkContext(conf)
   sc.setLogLevel("ERROR")
 
-  val crawler: Crawler = new Crawler()
-  println("Start crawling spells")
-  val spells: ArrayBuffer[Spell] = crawler.crawlSpells()
-  println("Stop crawling spells")
+  val spellCrawler: SpellCrawler = new SpellCrawler()
+  val spells: ArrayBuffer[Spell] = spellCrawler.crawl()
   val spellsRDD: RDD[Spell] = sc.makeRDD(spells)
 
-  // Crawling creatures
-  println("Start crawling creatures")
-  val creatures: ArrayBuffer[Creature] = crawler.crawlBestiaries()
-  println("Stop crawling creatures")
-
-  // (creature, spells)
+  val creatureCrawler: CreatureCrawler = new CreatureCrawler()
+  val creatures: ArrayBuffer[Creature] = creatureCrawler.crawl()
   val creaturesRDD: RDD[Creature] = sc.makeRDD(creatures)
 
-  // inverted indexes (spell, creatures)
-  val spellsWithCreatures: RDD[(String, String)] = creaturesRDD
+  // Index inversé (spell -> creature)
+  val spellsWithCreatures: RDD[(String, ArrayBuffer[String])] = creaturesRDD
     .map(creature => (creature.name, creature.spells))
     .reduceByKey((spells1, spells2) => spells1)
-    .flatMap { case (name, spells) => spells.map(spell => (spell, name)) }
-    .reduceByKey((name1, name2) => name1 + " / " + name2)
+    .flatMap { case (name, spells) => spells.map(spell => (spell, ArrayBuffer(name))) }
+    .reduceByKey((acc, name) => {
+      if (!acc.contains(name(0))) {
+        acc ++ name
+      }
+      else {
+        acc
+      }
+    })
 
-  // save as file
+  // Sauvegarder dans un fichier texte
   // spellsWithCreatures.coalesce(1).saveAsTextFile("spellsWithCreatures")
 
-  // display
+  // Affichage de l'index inversé
   spellsWithCreatures
     .foreach(res => {
       println("Spell : " + res._1 + " | Creatures : " + res._2)
     })
 
-  // Server
+  // Lancement du serveur
   val server = new Server(spellsWithCreatures, spellsRDD)
   server.run()
 
